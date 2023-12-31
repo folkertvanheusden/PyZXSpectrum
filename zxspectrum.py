@@ -31,7 +31,8 @@ def debug(x):
 
 parser = OptionParser()
 parser.add_option('-r', '--rom', dest='rom_file', help='select ROM')
-parser.add_option('-S', '--sna', dest='sna_file', help='select SNA file to load (when F10 is pressed)')
+parser.add_option('-S', '--sna', dest='sna_file', help='select .SNA file to load (when F10 is pressed)')
+parser.add_option('-Z', '--z80', dest='z80_file', help='select .Z80 file to load (when F10 is pressed)')
 parser.add_option('-l', '--debug-log', dest='debug_log', help='logfile to write to (optional)')
 (options, args) = parser.parse_args()
 
@@ -93,12 +94,10 @@ def menu():
         read_byte(fh)  # border color
 
         print('Loading video ram...')
-
         for i in range(0x4000, 0x5b00):
             dk.write_mem(i, read_byte(fh))
 
         print('Loading main ram...')
-
         for i in range(0x5b00, 0x10000):
             ram_.write_mem(i, read_byte(fh))
  
@@ -107,6 +106,101 @@ def menu():
         cpu.retn()
 
         print(f'File {options.sna_file} loaded into RAM')
+
+    if options.z80_file != None:
+        fh = open(options.z80_file, 'rb')
+
+        print('Loading header...')
+
+        cpu.a = read_byte(fh)
+        cpu.f = read_byte(fh)
+        cpu.c = read_byte(fh)
+        cpu.b = read_byte(fh)
+        cpu.l = read_byte(fh)
+        cpu.h = read_byte(fh)
+        cpu.pc = read_word(fh)
+        print(f'PC: {cpu.pc:04x}')
+        cpu.sp = read_word(fh)
+        print(f'SP: {cpu.sp:04x}')
+        cpu.i = read_byte(fh)
+        cpu.r = read_byte(fh)
+        meta = read_byte(fh)
+        if meta == 255:
+            meta = 1
+        cpu.e = read_byte(fh)
+        cpu.d = read_byte(fh)
+        cpu.c_ = read_byte(fh)
+        cpu.b_ = read_byte(fh)
+        cpu.e_ = read_byte(fh)
+        cpu.d_ = read_byte(fh)
+        cpu.l_ = read_byte(fh)
+        cpu.h_ = read_byte(fh)
+        cpu.a_ = read_byte(fh)
+        cpu.f_ = read_byte(fh)
+        cpu.iy = read_word(fh)
+        cpu.ix = read_word(fh)
+        cpu.interrupts = (read_byte(fh) & 1) == 1
+        read_byte(fh)  # iff2
+        read_byte(fh)  # 29
+
+        if cpu.pc == 0x0000:  # version 2/3
+            print('Loading version 2/3 header...')
+            # TODO
+
+            while True:
+                compressed_length = read_word(fh)
+                page_number = read_byte(fh)
+                print(f'Loading page {page_number}')
+                if compressed_length == 0xffff:
+                    print('Uncompressed')
+                    # TODO read 16kB
+                    pass
+                else:
+                    print('Compressed')
+                    # uncompress
+                    pass
+                break
+        else:
+            if meta & 32:
+                print('Compressed 48k follows')
+                stream = []
+                bp = None
+                while len(stream) < 1024 * 48:
+                    bc = read_byte(fh)
+                    if bc == 0xed:
+                        if bp == 0xed:
+                            n = read_byte(fh)
+                            by_what = read_byte(fh)
+                            for i in range(n):
+                                stream.append(by_what)
+                            bp = None
+                        else:
+                            bp = bc
+                    else:
+                        stream.append(bc)
+                        bp = None
+
+                print('Loading video ram...')
+                for i in range(0x4000, 0x5b00):
+                    dk.write_mem(i, stream[i - 0x4000])
+
+                print('Loading main ram...')
+                for i in range(0x5b00, 0x10000):
+                    ram_.write_mem(i, stream[i - 0x4000])
+            else:
+                print('Uncompressed 48k follows')
+
+                print('Loading video ram...')
+                for i in range(0x4000, 0x5b00):
+                    dk.write_mem(i, read_byte(fh))
+
+                print('Loading main ram...')
+                for i in range(0x5b00, 0x10000):
+                    ram_.write_mem(i, read_byte(fh))
+
+        print('Finished loading')
+
+        fh.close()
 
 rom = rom(options.rom_file, debug, 0x0000)
 ram_ = ram(debug)
