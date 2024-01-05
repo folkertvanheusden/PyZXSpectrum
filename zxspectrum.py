@@ -165,20 +165,26 @@ def menu():
                 print('Compressed 48k follows')
                 stream = []
                 bp = None
-                while len(stream) < 1024 * 48:
+                while True:
                     bc = read_byte(fh)
                     if bc == 0xed:
                         if bp == 0xed:
                             n = read_byte(fh)
                             by_what = read_byte(fh)
+                            if n == 0:
+                                assert stream.pop() == 0
+                                break
                             for i in range(n):
                                 stream.append(by_what)
                             bp = None
                         else:
                             bp = bc
                     else:
+                        if bp == 0xed:
+                            stream.append(bp)
                         stream.append(bc)
                         bp = None
+                assert len(stream)==(48*1024)
 
                 print('Loading video ram...')
                 for i in range(0x4000, 0x5b00):
