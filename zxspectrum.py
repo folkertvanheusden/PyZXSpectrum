@@ -198,7 +198,7 @@ def menu():
                 for i in range(0x5b00, 0x10000):
                     ram_.write_mem(i, read_byte(fh))
 
-        print('Finished loading')
+        print(f'Finished loading {options.z80_file}')
 
         fh.close()
 
